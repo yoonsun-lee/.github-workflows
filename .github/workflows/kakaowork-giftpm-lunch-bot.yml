@@ -1,18 +1,67 @@
 name: Kakaowork Lunch Vote
 
 on:
+  # 평일 오전 10:05 (KST) → UTC 01:05
   schedule:
-    - cron: '0 1 * * 1-5'
+    - cron: '5 1 * * 1-5'
+
+  # 수동 테스트용
   workflow_dispatch:
 
 jobs:
-  send-message:
+  send-lunch-vote:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Send message
+      # 1️⃣ 실행 로그 (이게 찍히면 "스케줄은 돌았다" 확정)
+      - name: Log trigger time
         run: |
-          curl -X POST ${{ secrets.KAKAOWORK_WEBHOOK_URL }} \
-            -H "Content-Type: application/json" \
-            -d '{
-              "text": "🍚 밥밥\n함점은 👏 \n따점은 👍 \n눌러주세요"
-            }'
+          echo "🚀 Workflow triggered"
+          echo "UTC time: $(date -u)"
+          echo "KST time: $(TZ=Asia/Seoul date)"
+
+      # 2️⃣ 레포 코드 체크아웃 (스크립트 쓸 경우)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 3️⃣ Python 세팅 (필요 없으면 제거 가능)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 4️⃣ 의존성 설치 (requests 등)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # 5️⃣ 카카오워크 메시지 전송
+      - name: Send KakaoWork message
+        env:
+          KAKAOWORK_WEBHOOK_URL: ${{ secrets.KAKAOWORK_WEBHOOK_URL }}
+        run: |
+          python << 'EOF'
+          import os
+          import requests
+          from datetime import datetime
+          import pytz
+
+          webhook_url = os.getenv("KAKAOWORK_WEBHOOK_URL")
+          if not webhook_url:
+              raise Exception("KAKAOWORK_WEBHOOK_URL is not set")
+
+          kst = pytz.timezone("Asia/Seoul")
+          now = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
+
+          payload = {
+              "text": f"🍱 점심 투표 시간입니다!\n({now})\n\n1️⃣ 한식\n2️⃣ 양식\n3️⃣ 중식\n4️⃣ 자유식"
+          }
+
+          res = requests.post(webhook_url, json=payload)
+          print("status:", res.status_code)
+          print("response:", res.text)
+
+          if res.status_code != 200:
+              raise Exception("Failed to send KakaoWork message")
+          EOF
