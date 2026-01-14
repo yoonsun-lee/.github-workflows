@@ -5,10 +5,6 @@ on:
     # 평일 오전 10:00 KST (UTC 01:00)
     - cron: '0 1 * * 1-5'
 
-    # 🔎 테스트용: 오늘 11:45 KST (UTC 02:45)
-    # ※ 확인 후 이 줄은 꼭 삭제!
-    - cron: '45 2 * * 1-5'
-
   workflow_dispatch:
 
 jobs:
@@ -30,12 +26,18 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Restore send history cache
+        uses: actions/cache@v4
+        with:
+          path: sent_logs
+          key: lunch-vote-${{ runner.os }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pytz
 
-      - name: Send KakaoWork message
+      - name: Send KakaoWork message (once per day)
         env:
           KAKAOWORK_WEBHOOK_URL: ${{ secrets.KAKAOWORK_WEBHOOK_URL }}
         run: |
@@ -44,16 +46,32 @@ jobs:
           import requests
           from datetime import datetime
           import pytz
+          import sys
 
           webhook_url = os.getenv("KAKAOWORK_WEBHOOK_URL")
           if not webhook_url:
               raise Exception("KAKAOWORK_WEBHOOK_URL is not set")
 
           kst = pytz.timezone("Asia/Seoul")
-          now = datetime.now(kst).strftime("%Y-%m-%d %H:%M")
+          now = datetime.now(kst)
+
+          # 주말 방어 (cron이 혹시라도 잘못 돌 경우 대비)
+          if now.weekday() >= 5:
+              print("🚫 Weekend detected. Skipping send.")
+              sys.exit(0)
+
+          today = now.strftime("%Y-%m-%d")
+          log_dir = "sent_logs"
+          os.makedirs(log_dir, exist_ok=True)
+
+          log_file = os.path.join(log_dir, f"sent_{today}.txt")
+
+          if os.path.exists(log_file):
+              print(f"⚠️ Already sent today ({today}). Skipping.")
+              sys.exit(0)
 
           payload = {
-              "text": f"🍱 점심 투표 알림 (테스트 포함)\n({now})\n\n1️⃣ 한식\n2️⃣ 양식\n3️⃣ 중식\n4️⃣ 자유식"
+              "text": "🍚 밥밥\n함점은 👏 \n따점은 👍 \n눌러주세요"
           }
 
           res = requests.post(webhook_url, json=payload)
@@ -62,4 +80,9 @@ jobs:
 
           if res.status_code != 200:
               raise Exception("Failed to send KakaoWork message")
+
+          with open(log_file, "w") as f:
+              f.write(now.isoformat())
+
+          print("✅ Message sent and logged.")
           EOF
