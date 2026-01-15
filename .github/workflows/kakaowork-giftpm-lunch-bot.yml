@@ -2,8 +2,9 @@ name: Kakaowork Lunch Vote
 
 on:
   schedule:
-    # 평일 오전 10:00 KST (UTC 01:00)
-    - cron: '0 1 * * 1-5'
+# 평일 오전 8:30 KST (UTC 23:30)
+- cron: '30 23 * * 1-5'
+
 
   workflow_dispatch:
 
