@@ -1,9 +1,9 @@
-name: Kakaowork Lunch Vote (Test 23:00)
+name: Kakaowork Lunch Vote (Daily 23:05)
 
 on:
   schedule:
-    # 테스트용: 오후 11:00 KST = 14:00 UTC
-    - cron: "0 14 * * 1-5"
+    # 매일 오후 11:05 KST = 14:05 UTC
+    - cron: "5 14 * * *"
 
   # 수동 실행도 가능
   workflow_dispatch:
@@ -35,4 +35,22 @@ jobs:
         run: |
           python - << 'EOF'
           import os
-          import sys
+          import requests
+
+          url = os.getenv("PRACTICE_CODE")
+          if not url:
+              raise Exception("PRACTICE_CODE is not set")
+
+          payload = {
+              "text": "🍚 밥밥\n함점은 👏 \n따점은 👍 \n눌러주세요"
+          }
+
+          res = requests.post(url, json=payload, timeout=15)
+          print("status:", res.status_code)
+          print("response:", res.text)
+
+          if res.status_code not in (200, 204):
+              raise Exception("Failed to send KakaoWork message")
+
+          print("✅ Message sent.")
+          EOF
