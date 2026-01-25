@@ -4,7 +4,6 @@ on:
   schedule:
     # 평일 오전 8:30 KST (UTC 23:30)
     - cron: '30 23 * * 1-5'
-
   workflow_dispatch:
 
 jobs:
@@ -26,11 +25,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 날짜별 키를 만들어 cache가 매일 새로 저장되도록 함 (하루 1번 보장에 도움)
+      - name: Compute cache key (KST date)
+        id: kstdate
+        run: echo "date=$(TZ=Asia/Seoul date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Restore send history cache
         uses: actions/cache@v4
         with:
           path: sent_logs
-          key: lunch-vote-${{ runner.os }}
+          key: lunch-vote-${{ runner.os }}-${{ steps.kstdate.outputs.date }}
 
       - name: Install dependencies
         run: |
@@ -39,7 +43,8 @@ jobs:
 
       - name: Send KakaoWork message (once per day)
         env:
-          KAKAOWORK_WEBHOOK_URL: ${{ secrets.PRACTICE_CODE }}
+          # ✅ 너가 말한대로 PRACTICE_CODE를 환경변수로 주입
+          PRACTICE_CODE: ${{ secrets.PRACTICE_CODE }}
         run: |
           python << 'EOF'
           import os
@@ -50,7 +55,7 @@ jobs:
 
           webhook_url = os.getenv("PRACTICE_CODE")
           if not webhook_url:
-              raise Exception("PRACTICE_CODE is not set")
+              raise Exception("PRACTICE_CODE is not set (GitHub Secrets에 PRACTICE_CODE가 있는지 확인하세요)")
 
           kst = pytz.timezone("Asia/Seoul")
           now = datetime.now(kst)
@@ -81,7 +86,7 @@ jobs:
           if res.status_code not in (200, 204):
               raise Exception("Failed to send KakaoWork message")
 
-          with open(log_file, "w") as f:
+          with open(log_file, "w", encoding="utf-8") as f:
               f.write(now.isoformat())
 
           print("✅ Message sent and logged.")
