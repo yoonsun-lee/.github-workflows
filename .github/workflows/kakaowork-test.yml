@@ -1,30 +1,38 @@
-name: KakaoWork Webhook Test
+name: Kakaowork Lunch Vote (Test 23:00)
 
 on:
-  workflow_dispatch:  # 수동 실행(연습 1회)
+  schedule:
+    # 테스트용: 오후 11:00 KST = 14:00 UTC
+    - cron: "0 14 * * 1-5"
+
+  # 수동 실행도 가능
+  workflow_dispatch:
 
 jobs:
-  send-test:
+  send-message:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Log trigger time
+        run: |
+          echo "🚀 Workflow triggered"
+          echo "UTC time: $(date -u)"
+          echo "KST time: $(TZ=Asia/Seoul date)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pytz
+
       - name: Send KakaoWork message
         env:
           PRACTICE_CODE: ${{ secrets.PRACTICE_CODE }}
         run: |
           python - << 'EOF'
           import os
-          import requests
-
-          url = os.getenv("PRACTICE_CODE")
-          if not url:
-              raise Exception("PRACTICE_CODE secret is missing")
-
-          payload = {"text": "🍚 밥밥\n함점은 👏 \n따점은 👍 \n눌러주세요"}
-
-          res = requests.post(url, json=payload, timeout=15)
-          print("status:", res.status_code)
-          print("response:", res.text)
-
-          if res.status_code not in (200, 204):
-              raise SystemExit("Failed to send")
-          EOF
+          import sys
