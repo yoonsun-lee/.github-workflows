@@ -1,13 +1,17 @@
 name: Kakaowork Lunch Vote
 
 on:
+  # GitHub Actions cron은 기본적으로 UTC 기준
+  # 오전 9:30 KST = 00:30 UTC
+  # 월~금(1-5)만 실행
   schedule:
-    # 평일 오전 8:30 KST (UTC 23:30)
-    - cron: '30 23 * * 1-5'
+    - cron: "30 0 * * 1-5"
+
+  # 필요하면 수동 실행도 가능
   workflow_dispatch:
 
 jobs:
-  send-lunch-vote:
+  send-message:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,77 +21,49 @@ jobs:
           echo "UTC time: $(date -u)"
           echo "KST time: $(TZ=Asia/Seoul date)"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      # 날짜별 키를 만들어 cache가 매일 새로 저장되도록 함 (하루 1번 보장에 도움)
-      - name: Compute cache key (KST date)
-        id: kstdate
-        run: echo "date=$(TZ=Asia/Seoul date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-
-      - name: Restore send history cache
-        uses: actions/cache@v4
-        with:
-          path: sent_logs
-          key: lunch-vote-${{ runner.os }}-${{ steps.kstdate.outputs.date }}
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pytz
 
-      - name: Send KakaoWork message (once per day)
+      - name: Send KakaoWork message
         env:
-          # ✅ 너가 말한대로 PRACTICE_CODE를 환경변수로 주입
           PRACTICE_CODE: ${{ secrets.PRACTICE_CODE }}
         run: |
-          python << 'EOF'
+          python - << 'EOF'
           import os
+          import sys
           import requests
           from datetime import datetime
           import pytz
-          import sys
 
           webhook_url = os.getenv("PRACTICE_CODE")
           if not webhook_url:
-              raise Exception("PRACTICE_CODE is not set (GitHub Secrets에 PRACTICE_CODE가 있는지 확인하세요)")
+              raise Exception("PRACTICE_CODE is not set. GitHub Secrets에 PRACTICE_CODE를 추가했는지 확인하세요.")
 
           kst = pytz.timezone("Asia/Seoul")
           now = datetime.now(kst)
 
-          # 주말 방어 (cron이 혹시라도 잘못 돌 경우 대비)
-          if now.weekday() >= 5:
-              print("🚫 Weekend detected. Skipping send.")
-              sys.exit(0)
-
-          today = now.strftime("%Y-%m-%d")
-          log_dir = "sent_logs"
-          os.makedirs(log_dir, exist_ok=True)
-
-          log_file = os.path.join(log_dir, f"sent_{today}.txt")
-
-          if os.path.exists(log_file):
-              print(f"⚠️ Already sent today ({today}). Skipping.")
+          # 안전장치: 주말이면 절대 발송 안 함
+          if now.weekday() >= 5:  # 5=토, 6=일
+              print("🚫 Weekend detected (KST). Skipping send.")
               sys.exit(0)
 
           payload = {
               "text": "🍚 밥밥\n함점은 👏 \n따점은 👍 \n눌러주세요"
           }
 
-          res = requests.post(webhook_url, json=payload)
+          res = requests.post(webhook_url, json=payload, timeout=15)
           print("status:", res.status_code)
           print("response:", res.text)
 
           if res.status_code not in (200, 204):
               raise Exception("Failed to send KakaoWork message")
 
-          with open(log_file, "w", encoding="utf-8") as f:
-              f.write(now.isoformat())
-
-          print("✅ Message sent and logged.")
+          print("✅ Message sent.")
           EOF
