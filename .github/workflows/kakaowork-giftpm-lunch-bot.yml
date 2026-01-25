@@ -39,7 +39,7 @@ jobs:
 
       - name: Send KakaoWork message (once per day)
         env:
-          KAKAOWORK_WEBHOOK_URL: ${{ secrets.KAKAOWORK_WEBHOOK_URL }}
+          KAKAOWORK_WEBHOOK_URL: ${{ secrets.PRACTICE_CODE }}
         run: |
           python << 'EOF'
           import os
@@ -48,9 +48,9 @@ jobs:
           import pytz
           import sys
 
-          webhook_url = os.getenv("KAKAOWORK_WEBHOOK_URL")
+          webhook_url = os.getenv("PRACTICE_CODE")
           if not webhook_url:
-              raise Exception("KAKAOWORK_WEBHOOK_URL is not set")
+              raise Exception("PRACTICE_CODE is not set")
 
           kst = pytz.timezone("Asia/Seoul")
           now = datetime.now(kst)
